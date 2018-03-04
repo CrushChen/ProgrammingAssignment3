@@ -16,23 +16,23 @@
    may use (not including page table pages)
 
 # Difference in Trace Files:
- - Memory Quota --> quota pages
+ - Memory Quota (quota pages) --> 
     Sets the maximum number of pages that a trace (process) may use, not including pages
     used for the page table itself. Changing the quota to fewer pages than are already in use
     does not cause an error or cause any pages to be deallocated
 
- - Put Bytes --> put addr values
+ - Put Bytes (put addr values) --> 
     Store values starting at addr; values is a list of byte values, separated by white space.
     Any destination page which is not Present (causing a page fault) should be allocated,
     and the put operation should be resumed. If the process page quota is exceeded, the process
     should be terminated with an explanatory message in the output
 
- - Fill Bytes --> fill addr count value
+ - Fill Bytes (fill addr count value) --> 
     Store count copies of value starting at addr. Any destination page which is not Present (causing
     a page fault) should be allocated, and the fill operation should be resumed. If the process
     page quota is exceeded, the process should be terminated with an explanatory message in the output
 
- - Copy Bytes --> copy dest_addr src_addr count
+ - Copy Bytes (copy dest_addr src_addr count) --> 
     Copy count bytes from src_addr to dest_addr. THe source and destination ranges will not overlap. Any
     destination page which is not Present (causing a page fault) should be allocated, and the copy operation 
     should be resumed. If the process page quota is exceeded, the process should be terminated
