@@ -50,6 +50,8 @@
 #ifndef SCHEDULER_H
 #define SCHEDULER_H
 
+#include "ProcessTrace.h"
+
 #include <queue>
 #include <vector>
 #include <string>
@@ -60,7 +62,8 @@ public:
     /**
      * Constructor - initialize processing
      */
-    Scheduler(std::string file_name_, int block_duration, int time_slice);
+    Scheduler(std::vector<std::string> &file_names_, mem::MMU &memory_,
+               PageFrameAllocator &allocator_, int time_slice_);
 
     /**
      * Destructor - clean up processing
@@ -84,25 +87,23 @@ private:
      * struct to hold all necessary information about a process
      */
     struct Process {
-        std::string name; //name of process
-        int arrival_time; //arrival time of process in system
-        int total_time; //total time needed for process to run
-        int block_interval; //interval of time process blocks for I/O
-        int remaining_time; //might be useful for SPN
-        int termination_time; //might be useful for computing average turnaround time
-        int time_blocked; //keeps track of how long the process has been blocked for OR how long until the next block
-        bool is_blocked; //holds the block status of the process
-    };
-
-    int BLOCK_DURATION; //decimal integer time length a process is unavailable to run after it blocks
-    int TIME_SLICE; //decimal integer length of time slice for RoundRobin algorithm 
+        ProcessTrace trace; //name of process
+        int lines_executed; //number of lines the process has executed
+   };
+    
+    int TIME_SLICE; //number of lines to process 
+    int NUM_PROCESSES;
+    // Memory contents
+    mem::MMU &memory;
+    // Memory allocator
+    PageFrameAllocator &allocator;
+    //vector of all processes
+    std::vector<Process> processes;
 
     /**
      * Extracts information from input file (allocates data into Process structs)
-     * -Name: sequence of non-blank characters for name of process
-     * -Arrival Time: time at which the process arrives
-     * -Total Time: total amount of CPU time the process needs
-     * -Block Interval: interval at which a process blocks for I/O
+     * -Name: file name
+     * -ID: process id
      * Format:
      *  name arrival_time total_time block_interval
      * 
@@ -110,33 +111,15 @@ private:
      * -1 line per process (formatted as shown above)
      * @param file_name_
      */
-    std::vector<Process> ParseFile(std::string file_name_);
+    std::vector<Process> ParseFiles(std::string file_name_);
     
     
     /**
-     * Function to call both scheduling algorithms
-     * Passes the vector of processes read from the ParseFile method to both
-     * algorithms 
+     * Function to begin multiprogramming 
      * @param processes
      */
     void Execute(std::vector<Scheduler::Process> processes);
 
-    /*****
-     * For both algorithms below, when a process re-enters the ready queue
-     * after being blocked or entering the system should be placed on the 
-     * end of the queue
-     ******/
-    /**
-     * Round Robin scheduling algorithm implementation:
-     * 
-     * -Scheduler keeps a circular list of processes 
-     * -Scheduler runs periodically or when a process blocks (period = time_slice)
-     * -Each time scheduler runs it gives the CPU to the next process in the
-     *  circular list
-     * (Smaller time slice = better response time but reduces CPU efficiency)
-     * (Larger time slice decreases the total amount of process switch overhead)
-     */
-    void RoundRobin(std::vector<Process> processes);
     
     /**
      * Sets the currentIndex to the next valid index of the process list

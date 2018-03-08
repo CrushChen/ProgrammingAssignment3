@@ -100,7 +100,7 @@ public:
    */
   ProcessTrace(mem::MMU &memory_,
                PageFrameAllocator &allocator,
-               std::string file_name_);
+               std::string file_name_, int id);
   
   /**
    * Destructor - close trace file, clean up processing
@@ -117,13 +117,18 @@ public:
    * Execute - read and process commands from trace file
    * 
    */
-  void Execute(void);
+  int Execute(int num_lines);
+  int getID(){ return id_number; }
   
 private:
   // Trace file
   std::string file_name;
   std::fstream trace;
   long line_number;
+  int id_number;
+  int allocated_pages;
+  //Maximum number of pages the trace may use
+  int QUOTA;
 
   // Memory contents
   mem::MMU &memory;
@@ -134,6 +139,8 @@ private:
   
   // Memory allocator
   PageFrameAllocator &allocator;
+  
+  
   
   /**
    * ParseCommand - parse a trace file command.
@@ -154,9 +161,10 @@ private:
    * @param cmd command, converted to all lower case
    * @param cmdArgs arguments to command
    */
-  void CmdAlloc(const std::string &line, 
-                const std::string &cmd, 
+  void CmdQuota(const std::string &line,
+                const std::string &cmd,
                 const std::vector<uint32_t> &cmdArgs);
+  void Alloc(Addr vaddr, int count);
   void CmdCompare(const std::string &line, 
               const std::string &cmd, 
               const std::vector<uint32_t> &cmdArgs);
