@@ -164,17 +164,17 @@ private:
   void CmdQuota(const std::string &line,
                 const std::string &cmd,
                 const std::vector<uint32_t> &cmdArgs);
-  void Alloc(Addr vaddr, int count);
+  void Alloc(mem::Addr vaddr, int count);
   void CmdCompare(const std::string &line, 
               const std::string &cmd, 
               const std::vector<uint32_t> &cmdArgs);
-  void CmdPut(const std::string &line, 
+  bool CmdPut(const std::string &line, 
               const std::string &cmd, 
               const std::vector<uint32_t> &cmdArgs);
-  void CmdFill(const std::string &line, 
+  bool CmdFill(const std::string &line, 
                const std::string &cmd, 
                const std::vector<uint32_t> &cmdArgs);
-  void CmdCopy(const std::string &line, 
+  bool CmdCopy(const std::string &line, 
                const std::string &cmd, 
                const std::vector<uint32_t> &cmdArgs);
   void CmdDump(const std::string &line, 

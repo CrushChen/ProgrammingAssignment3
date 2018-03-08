@@ -50,7 +50,9 @@
 #ifndef SCHEDULER_H
 #define SCHEDULER_H
 
+#include "PageFrameAllocator.h"
 #include "ProcessTrace.h"
+#include <MMU.h>
 
 #include <queue>
 #include <vector>
@@ -79,6 +81,10 @@ public:
     Scheduler operator=(const Scheduler &other) = delete;
     Scheduler operator=(Scheduler &&other) = delete;
 
+    /**
+     * Function to begin multiprogramming
+     */
+    void Execute();
 
 
 private:
@@ -87,7 +93,8 @@ private:
      * struct to hold all necessary information about a process
      */
     struct Process {
-        ProcessTrace trace; //name of process
+        
+        ProcessTrace* trace; //name of process
         int lines_executed; //number of lines the process has executed
    };
     
@@ -111,14 +118,10 @@ private:
      * -1 line per process (formatted as shown above)
      * @param file_name_
      */
-    std::vector<Process> ParseFiles(std::string file_name_);
+    void ParseFiles(std::vector<std::string> &file_names_);
     
     
-    /**
-     * Function to begin multiprogramming 
-     * @param processes
-     */
-    void Execute(std::vector<Scheduler::Process> processes);
+    
 
     
     /**
@@ -127,7 +130,7 @@ private:
      * @param currentIndex
      * @param numProcesses
      */
-    void getNextIndex(int& currentIndex, int& numProcesses);
+    void getNextIndex(int& currentIndex);
 };
 
 #endif /* SCHEDULER_H */

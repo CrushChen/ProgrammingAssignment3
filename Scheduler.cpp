@@ -31,13 +31,13 @@ Scheduler::Scheduler(vector<std::string> &file_names_, mem::MMU &memory_,
 Scheduler::~Scheduler() {
 }
 
-std::vector<Scheduler::Process> Scheduler::ParseFiles(vector<std::string> &file_names_) {
+void Scheduler::ParseFiles(vector<std::string> &file_names_) {
     int id = 0;
     for(auto s : file_names_){
-        Process temp = new Process();
-        temp.trace = new ProcessTrace(memory, allocator, s, id);
-        temp.lines_executed = 0;
-        processes.push_back(temp);
+        Process* temp;
+        temp->trace = new ProcessTrace(memory, allocator, s, id);
+        temp->lines_executed = 0;
+        processes.push_back(*temp);
         ++id;
     }
 }
@@ -52,7 +52,7 @@ void Scheduler::Execute() {
         lines = current_proc.trace->Execute(TIME_SLICE);
         if(lines != TIME_SLICE){
             std::cout << (current_proc.lines_executed + lines) 
-                    << ":" << +current_proc.trace.getID() << ":TERMINATED" << std::endl;
+                    << ":" << +current_proc.trace->getID() << ":TERMINATED" << std::endl;
             processes.erase(processes.begin()+index);
             --NUM_PROCESSES;
         } else {
