@@ -32,12 +32,10 @@ Scheduler::~Scheduler() {
 }
 
 void Scheduler::ParseFiles(vector<std::string> &file_names_) {
-    int id = 0;
-    for(auto s : file_names_){
-        Process* temp;
-        temp->trace = new ProcessTrace(memory, allocator, s, id);
-        temp->lines_executed = 0;
-        processes.push_back(*temp);
+    int id = 1;
+    for(std::string s : file_names_){
+        ProcessTrace* temp = new ProcessTrace(memory, allocator, s, id);
+        processes.push_back(temp);
         ++id;
     }
 }
@@ -46,17 +44,16 @@ void Scheduler::Execute() {
     //process objects are reset by the AverageTurnaroundTime function
     int index = 0;
     int lines;
-    Process current_proc;
+    ProcessTrace* current_proc;
     while(!processes.empty()){
         current_proc = processes.at(index);
-        lines = current_proc.trace->Execute(TIME_SLICE);
+        lines = current_proc->Execute(TIME_SLICE);
         if(lines != TIME_SLICE){
-            std::cout << (current_proc.lines_executed + lines) 
-                    << ":" << +current_proc.trace->getID() << ":TERMINATED" << std::endl;
+            std::cout << std::dec << (current_proc->getLinesExecuted()) 
+                    << ":" << +current_proc->getID() << ":TERMINATED" << std::endl;
             processes.erase(processes.begin()+index);
             --NUM_PROCESSES;
         } else {
-            current_proc.lines_executed += TIME_SLICE;
             getNextIndex(index);
         }
     }

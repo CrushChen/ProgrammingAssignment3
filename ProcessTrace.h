@@ -119,6 +119,7 @@ public:
    */
   int Execute(int num_lines);
   int getID(){ return id_number; }
+  int getLinesExecuted(){ return line_number; }
   
 private:
   // Trace file

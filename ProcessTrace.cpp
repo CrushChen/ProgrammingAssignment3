@@ -11,6 +11,7 @@
 #include "ProcessTrace.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cctype>
 #include <iomanip>
 #include <iostream>
@@ -29,18 +30,20 @@ using std::vector;
 ProcessTrace::ProcessTrace(MMU &memory_,
         PageFrameAllocator &allocator_,
         string file_name_, int id)
-: memory(memory_), allocator(allocator_), file_name(file_name_), 
-        line_number(0), id_number(id), allocated_pages(0) {
+: memory(memory_), allocator(allocator_), file_name(file_name_),
+line_number(0), id_number(id), allocated_pages(0) {
     // Open the trace file.  Abort program if can't open.
     trace.open(file_name, std::ios_base::in);
     if (!trace.is_open()) {
         cerr << "ERROR: failed to open trace file: " << file_name << "\n";
         exit(2);
     }
-    // Set up PMCB and empty 1st level page table
-    vector<Addr> allocated;
+
+    vector<mem::Addr> allocated;
+    memory.set_PMCB(pmem_pmcb);
     allocator.Allocate(1, allocated);
     vmem_pmcb = mem::PMCB(true, allocated[0]); // initialize PMCB
+    memory.set_PMCB(vmem_pmcb);
 }
 
 ProcessTrace::~ProcessTrace() {
@@ -64,17 +67,17 @@ int ProcessTrace::Execute(int num_lines) {
             } else if (cmd == "compare") {
                 CmdCompare(line, cmd, cmdArgs); // get and compare multiple bytes
             } else if (cmd == "put") {
-                if(!CmdPut(line, cmd, cmdArgs)){
+                if (!CmdPut(line, cmd, cmdArgs)) {
                     cout << "ERROR: memory quota " << std::hex << QUOTA << " exceeded" << std::endl;
                     return i;
                 } // put bytes
             } else if (cmd == "fill") {
-                if(!CmdFill(line, cmd, cmdArgs)){
+                if (!CmdFill(line, cmd, cmdArgs)) {
                     cout << "ERROR: memory quota " << std::hex << QUOTA << " exceeded" << std::endl;
                     return i;
                 } // fill bytes with value
             } else if (cmd == "copy") {
-                if(!CmdCopy(line, cmd, cmdArgs)){
+                if (!CmdCopy(line, cmd, cmdArgs)) {
                     cout << "ERROR: memory quota " << std::hex << QUOTA << " exceeded" << std::endl;
                     return i;
                 } // copy bytes to dest from source
@@ -93,6 +96,7 @@ int ProcessTrace::Execute(int num_lines) {
             return i; //lines executed before termination
         }
     }
+    memory.get_PMCB(vmem_pmcb);
     return num_lines;
 }
 
@@ -105,9 +109,9 @@ bool ProcessTrace::ParseCommand(
     // Read next line
     if (std::getline(trace, line)) {
         ++line_number;
-        cout << std::dec << line_number 
+        cout << std::dec << line_number
                 << ":" << id_number << ":" << line << "\n";
-        
+
 
         // If not comment
         if (line.at(0) != '#') {
@@ -134,9 +138,9 @@ bool ProcessTrace::ParseCommand(
     }
 }
 
-void ProcessTrace::CmdQuota(const std::string& line, 
-        const std::string& cmd, 
-        const std::vector<uint32_t>& cmdArgs){
+void ProcessTrace::CmdQuota(const std::string& line,
+        const std::string& cmd,
+        const std::vector<uint32_t>& cmdArgs) {
     QUOTA = cmdArgs.at(0);
 }
 
@@ -146,7 +150,7 @@ void ProcessTrace::Alloc(Addr vaddr_, int count_) {
     int count = count_;
 
     // Switch to physical mode
-    memory.get_PMCB(vmem_pmcb);
+    //memory.get_PMCB(vmem_pmcb);
     memory.set_PMCB(pmem_pmcb);
 
     Addr pt_base = vmem_pmcb.page_table_base;
@@ -191,25 +195,41 @@ bool ProcessTrace::CmdPut(const string &line,
     uint32_t addr = cmdArgs.at(0);
     size_t num_bytes = cmdArgs.size() - 1;
     uint8_t buffer[num_bytes];
-    int num_pages = num_bytes / kPageSize;
-    
-    try {
-        for (int i = 1; i < cmdArgs.size(); ++i) {
-            buffer[i - 1] = cmdArgs.at(i);
-        }
-        memory.put_bytes(addr, num_bytes, buffer);
-    } catch (PageFaultException e) {
-        //PrintAndClearException("PageFaultException", e);
-        if(allocated_pages + num_pages > QUOTA){
-            return false;
-            } else {
-                memory.get_PMCB(vmem_pmcb);
-                Alloc(vmem_pmcb.next_vaddress, num_bytes);
-                allocated_pages += num_pages;
-            }
-    } catch (WritePermissionFaultException e) {
-        PrintAndClearException("WritePermissionFaultException", e);
+    int num_pages = (num_bytes + kPageSize - 1) / kPageSize;
+    Addr bytes_written = 0;
+
+    for (int i = 1; i < cmdArgs.size(); ++i) {
+        buffer[i - 1] = cmdArgs.at(i);
     }
+    bool filled = false;
+    while (!filled) {
+        memory.set_PMCB(vmem_pmcb);
+        try {
+            memory.put_bytes(addr, num_bytes, buffer);
+            bytes_written = num_bytes;
+        } catch (PageFaultException e) {
+            //PrintAndClearException("PageFaultException", e);
+            memory.get_PMCB(vmem_pmcb);
+            bytes_written = vmem_pmcb.next_vaddress - addr;
+            if (bytes_written != num_bytes) {
+                if (allocated_pages == QUOTA) {
+                    return false;
+                } else {
+                    memory.set_PMCB(pmem_pmcb);
+                    AllocateAndMapPage(vmem_pmcb.next_vaddress & mem::kPageNumberMask);
+                    ++allocated_pages;
+                }
+            }
+        } catch (WritePermissionFaultException e) {
+            PrintAndClearException("WritePermissionFaultException", e);
+            filled = true;
+        }
+        if (bytes_written == num_bytes) {
+            filled = true;
+        }
+    }
+    //vmem_pmcb.operation_state = mem::PMCB::NONE;
+    memory.set_PMCB(vmem_pmcb);
     return true;
 }
 
@@ -221,34 +241,49 @@ bool ProcessTrace::CmdCopy(const string &line,
     Addr src = cmdArgs.at(1);
     Addr num_bytes = cmdArgs.at(2);
     uint8_t buffer[num_bytes];
+    Addr bytes_written = 0;
     int num_pages = num_bytes / kPageSize;
 
     // Try reading bytes
     Addr bytes_read = 0; // number of successfully read bytes
     try {
         memory.get_bytes(buffer, src, num_bytes);
-        bytes_read = num_bytes; // all bytes read
     } catch (PageFaultException e) {
         PrintAndClearException("PageFaultException on read", e);
     }
-
+    memory.get_PMCB(vmem_pmcb);
+    bytes_read = vmem_pmcb.next_vaddress - src;
     // Try writing bytes
-    if (bytes_read != 0) {
+    //if (bytes_read != 0) {
+    bool filled = false;
+    while (!filled) {
+        memory.set_PMCB(vmem_pmcb);
         try {
             memory.put_bytes(dst, bytes_read, buffer);
+            bytes_written = bytes_read;
         } catch (PageFaultException e) {
-            //PrintAndClearException("PageFaultException on write", e);
-            if(allocated_pages + num_pages > QUOTA){
-                return false;
-            } else {
-                memory.get_PMCB(vmem_pmcb);
-                Alloc(vmem_pmcb.next_vaddress, num_bytes);
-                allocated_pages += num_pages;
+            //PrintAndClearException("PageFaultException", e);
+            memory.get_PMCB(vmem_pmcb);
+            bytes_written = vmem_pmcb.next_vaddress - dst;
+            if (bytes_written != bytes_read) {
+                if (allocated_pages == QUOTA) {
+                    return false;
+                } else {
+                    memory.set_PMCB(pmem_pmcb);
+                    AllocateAndMapPage(vmem_pmcb.next_vaddress & mem::kPageNumberMask);
+                    ++allocated_pages;
+                }
             }
         } catch (WritePermissionFaultException e) {
             PrintAndClearException("WritePermissionFaultException", e);
+            filled = true;
+        }
+        if (bytes_written == bytes_read) {
+            filled = true;
         }
     }
+    //}
+    memory.set_PMCB(vmem_pmcb);
     return true;
 }
 
@@ -259,25 +294,41 @@ bool ProcessTrace::CmdFill(const string &line,
     Addr addr = cmdArgs.at(0);
     Addr num_bytes = cmdArgs.at(1);
     uint8_t val = cmdArgs.at(2);
-    int num_pages = num_bytes / kPageSize;
-    
-    try {
-        for (int i = 0; i < num_bytes; ++i) {
-            memory.put_byte(addr++, &val);
-        }
-    } catch (PageFaultException e) {
-        //PrintAndClearException("PageFaultException", e);
-        if(allocated_pages + num_pages > QUOTA){
-                return false;
-            } else {
-                memory.get_PMCB(vmem_pmcb);
-                Alloc(vmem_pmcb.next_vaddress, num_bytes);
-                allocated_pages += num_pages;
+    Addr bytes_written = 0;
+    Addr starting_addr = cmdArgs.at(0);
+    bool filled = false;
+    while (!filled) {
+        memory.set_PMCB(vmem_pmcb);
+        try {
+            int i = bytes_written;
+            for (; i < num_bytes; ++i) {
+                memory.put_byte(addr, &val);
+                ++addr;
+                ++bytes_written;
             }
-        
-    } catch (WritePermissionFaultException e) {
-        PrintAndClearException("WritePermissionFaultException", e);
+        } catch (PageFaultException e) {
+            //PrintAndClearException("PageFaultException", e);
+            memory.get_PMCB(vmem_pmcb);
+            bytes_written = vmem_pmcb.next_vaddress - starting_addr;
+            if (bytes_written != num_bytes) {
+                if (allocated_pages == QUOTA) {
+                    return false;
+                } else {
+                    memory.set_PMCB(pmem_pmcb);
+                    AllocateAndMapPage(vmem_pmcb.next_vaddress & mem::kPageNumberMask);
+                    ++allocated_pages;
+                }
+            }
+        } catch (WritePermissionFaultException e) {
+            PrintAndClearException("WritePermissionFaultException", e);
+            filled = true;
+        }
+        if (bytes_written == num_bytes) {
+            filled = true;
+        }
     }
+    //vmem_pmcb.operation_state = mem::PMCB::NONE;
+    memory.set_PMCB(vmem_pmcb);
     return true;
 }
 

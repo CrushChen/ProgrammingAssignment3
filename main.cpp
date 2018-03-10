@@ -58,8 +58,8 @@ int main(int argc, char* argv[]) {
       file_names.push_back(argv[i]);
   }
   
-  Scheduler* scheduler = new Scheduler(file_names, memory, allocator, time_slice);
-  scheduler->Execute();
+  Scheduler scheduler(file_names, memory, allocator, time_slice);
+  scheduler.Execute();
   
   return 0;
 }

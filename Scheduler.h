@@ -89,14 +89,6 @@ public:
 
 private:
 
-    /**
-     * struct to hold all necessary information about a process
-     */
-    struct Process {
-        
-        ProcessTrace* trace; //name of process
-        int lines_executed; //number of lines the process has executed
-   };
     
     int TIME_SLICE; //number of lines to process 
     int NUM_PROCESSES;
@@ -105,7 +97,7 @@ private:
     // Memory allocator
     PageFrameAllocator &allocator;
     //vector of all processes
-    std::vector<Process> processes;
+    std::vector<ProcessTrace*> processes;
 
     /**
      * Extracts information from input file (allocates data into Process structs)
