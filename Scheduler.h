@@ -1,42 +1,18 @@
 /*
- * Scheduler class to implement Round-Robin and Shortest Process Next
- * scheduling algorithms 
+ * Scheduler class to implement Round-Robin
+ * scheduling algorithm
  */
 
 /*
- * -All numeric values in the input file are decimal integers
- * (Time unit doesn't matter)
- * -Input file contains 1 line per process
- * -Lines are sorted in increasing order of arrival time in the system
+ * Takes in references to the MMU and PageFrameAllocator as well as the time_slice (number
+ * of lines each process executes while being run) and a vector of file_names. 
+ * The constructor passes the file_names to ParseFiles method which creates instances of 
+ * ProcessTraces for each file name. These are stored in a global vector.
+ * When Execute is called, the processes are executed in a Round-Robin fashion with each
+ * process executing TIME_SLICE number of lines. When a process terminates (either from exceeding
+ * its page frame quota or reaching the end of the file) a termination line is printed
+ * and the process is removed from the process queue (the global vector of processes)
  * 
- * -Line format --> name arrival_time total_time block_interval
- *  name: a sequence of non-blank characters representing the name of the process
- *  arrival_time: the time at which the process arrives in the system
- *  total_time: the total amount of CPU time which will be used by the process
- *  block_interval: interval at which will block for I/O. When a process blocks,
- *                  it is unavailable to run for the time specified by block_duration
- *                  in the scheduler parameter file
- * 
- * OUTPUT: --> all output should be written to standard output
- * For each scheduling algorithm:
- * - A single line with the name of the scheduling algorithm (RR or SPN),
- *   followed by the block_duration (for both algorithms) and time_slice (for RR)
- *   as specified on the command line. Values should be separated by spaces.
- * - One line for each interval during which a process is running or the system is 
- *   idle. The line should consist of a single space, followed by the current simulation
- *   time (starting at 0), followed by the process name (or "<idle>" if no process is
- *   running), the length of the interval and a status code:
- *      -"B" for blocked
- *      -"S" for time slice ended
- *      -"T" if the process terminated
- *      -"I" for an idle interval
- *   The fields should be separated by the tab character, '\t'.
- * - After all jobs have terminated, write a line consisting of a single space, the 
- *   simulation time at which the last job terminated, a tab character, the string
- *   "<done>", another tab character, and the average turnaround time of all
- *   processes (floating point value)
- * 
- * Turnaround Time: termination time - arrival time
  */
 
 /* 
@@ -88,10 +64,8 @@ public:
 
 
 private:
-
-    
     int TIME_SLICE; //number of lines to process 
-    int NUM_PROCESSES;
+    int NUM_PROCESSES; //number of processes currently running
     // Memory contents
     mem::MMU &memory;
     // Memory allocator
@@ -100,27 +74,20 @@ private:
     std::vector<ProcessTrace*> processes;
 
     /**
-     * Extracts information from input file (allocates data into Process structs)
+     * Extracts information from input file 
      * -Name: file name
      * -ID: process id
-     * Format:
-     *  name arrival_time total_time block_interval
      * 
-     * -All numeric values are decimal integers
-     * -1 line per process (formatted as shown above)
+     * Creates a new instance of ProcessTrace for every file name that is given
+     * Stores ProcessTraces in global vector
      * @param file_name_
      */
     void ParseFiles(std::vector<std::string> &file_names_);
-    
-    
-    
 
-    
     /**
      * Sets the currentIndex to the next valid index of the process list
      * (wraps the list)
      * @param currentIndex
-     * @param numProcesses
      */
     void getNextIndex(int& currentIndex);
 };

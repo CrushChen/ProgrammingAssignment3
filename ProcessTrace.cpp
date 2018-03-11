@@ -144,27 +144,6 @@ void ProcessTrace::CmdQuota(const std::string& line,
     QUOTA = cmdArgs.at(0);
 }
 
-void ProcessTrace::Alloc(Addr vaddr_, int count_) {
-    // Get arguments
-    Addr vaddr = vaddr_;
-    int count = count_;
-
-    // Switch to physical mode
-    //memory.get_PMCB(vmem_pmcb);
-    memory.set_PMCB(pmem_pmcb);
-
-    Addr pt_base = vmem_pmcb.page_table_base;
-
-    // Allocate pages, initialized to writable
-    while (count-- > 0) {
-        AllocateAndMapPage(vaddr);
-        vaddr += 0x1000;
-    }
-
-    // Switch back to virtual mode
-    memory.set_PMCB(vmem_pmcb);
-}
-
 void ProcessTrace::CmdCompare(const string &line,
         const string &cmd,
         const vector<uint32_t> &cmdArgs) {
@@ -201,34 +180,35 @@ bool ProcessTrace::CmdPut(const string &line,
     for (int i = 1; i < cmdArgs.size(); ++i) {
         buffer[i - 1] = cmdArgs.at(i);
     }
-    bool filled = false;
-    while (!filled) {
+    bool complete = false;
+    while (!complete) {
+        //clear previous operation of pmcb
+        vmem_pmcb.operation_state = mem::PMCB::NONE;
         memory.set_PMCB(vmem_pmcb);
         try {
             memory.put_bytes(addr, num_bytes, buffer);
-            bytes_written = num_bytes;
+            bytes_written = num_bytes; //all bytes were written successfully
         } catch (PageFaultException e) {
-            //PrintAndClearException("PageFaultException", e);
             memory.get_PMCB(vmem_pmcb);
-            bytes_written = vmem_pmcb.next_vaddress - addr;
-            if (bytes_written != num_bytes) {
-                if (allocated_pages == QUOTA) {
+            bytes_written = vmem_pmcb.next_vaddress - addr; //total number of successfully written bytes
+            if (bytes_written != num_bytes) { //need to allocate a page
+                if (allocated_pages == QUOTA) { //check process's quota
                     return false;
-                } else {
-                    memory.set_PMCB(pmem_pmcb);
+                } else { 
+                    memory.set_PMCB(pmem_pmcb); //switch to physical mode
                     AllocateAndMapPage(vmem_pmcb.next_vaddress & mem::kPageNumberMask);
                     ++allocated_pages;
                 }
             }
         } catch (WritePermissionFaultException e) {
             PrintAndClearException("WritePermissionFaultException", e);
-            filled = true;
+            complete = true;
         }
-        if (bytes_written == num_bytes) {
-            filled = true;
+        if (bytes_written == num_bytes) { //check if command completed
+            complete = true;
         }
     }
-    //vmem_pmcb.operation_state = mem::PMCB::NONE;
+    //make sure the MMU is in virtual mode before returning
     memory.set_PMCB(vmem_pmcb);
     return true;
 }
@@ -253,22 +233,24 @@ bool ProcessTrace::CmdCopy(const string &line,
     }
     memory.get_PMCB(vmem_pmcb);
     bytes_read = vmem_pmcb.next_vaddress - src;
+    
     // Try writing bytes
-    //if (bytes_read != 0) {
     bool filled = false;
     while (!filled) {
+        //clear previous operation of pmcb
+        vmem_pmcb.operation_state = mem::PMCB::NONE;
         memory.set_PMCB(vmem_pmcb);
         try {
             memory.put_bytes(dst, bytes_read, buffer);
-            bytes_written = bytes_read;
+            bytes_written = bytes_read; //all bytes written successfully
         } catch (PageFaultException e) {
-            //PrintAndClearException("PageFaultException", e);
             memory.get_PMCB(vmem_pmcb);
-            bytes_written = vmem_pmcb.next_vaddress - dst;
-            if (bytes_written != bytes_read) {
-                if (allocated_pages == QUOTA) {
+            bytes_written = vmem_pmcb.next_vaddress - dst; //total number of successfully written bytes
+            if (bytes_written != bytes_read) { //check if need to allocate a page frame
+                if (allocated_pages == QUOTA) { //check process's quota
                     return false;
                 } else {
+                    //switch to physical mode for allocation
                     memory.set_PMCB(pmem_pmcb);
                     AllocateAndMapPage(vmem_pmcb.next_vaddress & mem::kPageNumberMask);
                     ++allocated_pages;
@@ -278,11 +260,11 @@ bool ProcessTrace::CmdCopy(const string &line,
             PrintAndClearException("WritePermissionFaultException", e);
             filled = true;
         }
-        if (bytes_written == bytes_read) {
+        if (bytes_written == bytes_read) { //check if command completed
             filled = true;
         }
     }
-    //}
+    //make sure MMU is in virtual mode before returning
     memory.set_PMCB(vmem_pmcb);
     return true;
 }
@@ -298,6 +280,8 @@ bool ProcessTrace::CmdFill(const string &line,
     Addr starting_addr = cmdArgs.at(0);
     bool filled = false;
     while (!filled) {
+        //clear previous operation of pmcb
+        vmem_pmcb.operation_state = mem::PMCB::NONE;
         memory.set_PMCB(vmem_pmcb);
         try {
             int i = bytes_written;
@@ -307,13 +291,13 @@ bool ProcessTrace::CmdFill(const string &line,
                 ++bytes_written;
             }
         } catch (PageFaultException e) {
-            //PrintAndClearException("PageFaultException", e);
             memory.get_PMCB(vmem_pmcb);
-            bytes_written = vmem_pmcb.next_vaddress - starting_addr;
-            if (bytes_written != num_bytes) {
-                if (allocated_pages == QUOTA) {
+            bytes_written = vmem_pmcb.next_vaddress - starting_addr; //total number of bytes written successfully
+            if (bytes_written != num_bytes) { //check if need to allocate a page frame
+                if (allocated_pages == QUOTA) { //check process's quota
                     return false;
                 } else {
+                    //switch to physical mode for allocation
                     memory.set_PMCB(pmem_pmcb);
                     AllocateAndMapPage(vmem_pmcb.next_vaddress & mem::kPageNumberMask);
                     ++allocated_pages;
@@ -323,11 +307,11 @@ bool ProcessTrace::CmdFill(const string &line,
             PrintAndClearException("WritePermissionFaultException", e);
             filled = true;
         }
-        if (bytes_written == num_bytes) {
+        if (bytes_written == num_bytes) { //check if command is completed
             filled = true;
         }
     }
-    //vmem_pmcb.operation_state = mem::PMCB::NONE;
+    //make sure MMU is in virtual mode before returning
     memory.set_PMCB(vmem_pmcb);
     return true;
 }

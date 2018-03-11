@@ -1,4 +1,8 @@
 /*
+ * Scheduler for multiple process traces
+ */
+
+/*
  * File:   Scheduler.cpp
  * Author: Peter Gish
  *
@@ -25,7 +29,7 @@ Scheduler::Scheduler(vector<std::string> &file_names_, mem::MMU &memory_,
                PageFrameAllocator &allocator_, int time_slice_)
 : memory(memory_), allocator(allocator_), TIME_SLICE(time_slice_) {
     NUM_PROCESSES = file_names_.size();
-    ParseFiles(file_names_);
+    ParseFiles(file_names_); //initialize processes
 }
 
 Scheduler::~Scheduler() {
@@ -41,7 +45,6 @@ void Scheduler::ParseFiles(vector<std::string> &file_names_) {
 }
 
 void Scheduler::Execute() {
-    //process objects are reset by the AverageTurnaroundTime function
     int index = 0;
     int lines;
     ProcessTrace* current_proc;
@@ -53,15 +56,14 @@ void Scheduler::Execute() {
                     << ":" << +current_proc->getID() << ":TERMINATED" << std::endl;
             processes.erase(processes.begin()+index);
             --NUM_PROCESSES;
-        } else {
-            getNextIndex(index);
         }
+        getNextIndex(index);
     }
 }
 
 
 void Scheduler::getNextIndex(int& currentIndex) {
-    if (currentIndex + 1 == NUM_PROCESSES) {
+    if (currentIndex + 1 >= NUM_PROCESSES) {
         currentIndex = 0;
     } else {
         ++currentIndex;

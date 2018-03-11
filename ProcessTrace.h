@@ -76,7 +76,7 @@
 /* 
  * File:   ProcessTrace.h
  * Author: Mike Goss <mikegoss@cs.du.edu>
- *
+ * Modified By: Peter Gish
  */
 
 #ifndef PROCESSTRACE_H
@@ -158,6 +158,9 @@ private:
   /**
    * Command executors. Arguments are the same for each command.
    *   Form of the function is CmdX, where "X' is the command name, capitalized.
+   * Put, Fill,and Copy all return a bool that indicates if the command completed
+   * successfully. The condition is whether the process exceeded its quota, if so 
+   * it returns false, otherwise true is returned.
    * @param line original text of command line
    * @param cmd command, converted to all lower case
    * @param cmdArgs arguments to command
@@ -165,7 +168,6 @@ private:
   void CmdQuota(const std::string &line,
                 const std::string &cmd,
                 const std::vector<uint32_t> &cmdArgs);
-  void Alloc(mem::Addr vaddr, int count);
   void CmdCompare(const std::string &line, 
               const std::string &cmd, 
               const std::vector<uint32_t> &cmdArgs);

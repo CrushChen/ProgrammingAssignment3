@@ -6,7 +6,8 @@
 /* 
  * File:   main.cpp
  * Author: Mike Goss <mikegoss@cs.du.edu>
- *
+ * Modified By: Peter Gish
+ * 
  * Created on October 28, 2017, 10:08 PM
  */
 
@@ -58,6 +59,7 @@ int main(int argc, char* argv[]) {
       file_names.push_back(argv[i]);
   }
   
+  //Execute the processes
   Scheduler scheduler(file_names, memory, allocator, time_slice);
   scheduler.Execute();
   
